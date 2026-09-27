@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delta Neutral Simulator</title>
+<style>
+  :root{
+    --bg:#0b0e11; --panel:#12161c; --panel2:#1a2029; --border:#232a35;
+    --text:#eaecef; --muted:#8b95a5; --green:#2ebd85; --red:#f6465d;
+    --yellow:#f0b90b; --accent:#4c6fff;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; padding:12px; max-width:860px; margin:0 auto;}
+  h1{font-size:18px; font-weight:700; letter-spacing:.5px; display:flex; align-items:center; gap:8px;}
+  h1 .dn{color:var(--yellow);}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; margin-top:12px;}
+  .card h2{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:10px;}
+  .row{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+  .symbox{display:flex; align-items:center; gap:4px; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:5px 6px 5px 8px; cursor:pointer; user-select:none; font-size:13px;}
+  .symbox input{accent-color:var(--yellow); cursor:pointer;}
+  .symbox.off{opacity:.45;}
+  .symbox .rm{margin-left:2px; width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; background:transparent; border:none; border-radius:4px; color:var(--muted); font-size:10px; line-height:1; padding:0; cursor:pointer;}
+  .symbox .rm:hover{background:rgba(246,70,93,.18); color:var(--red);}
+  label.fl{font-size:11px; color:var(--muted); display:block; margin-bottom:3px;}
+  input[type=number], input[type=text], select{background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:7px 9px; font-size:14px; width:100%; outline:none;}
+  input:focus, select:focus{border-color:var(--accent);}
+  .fld{flex:1; min-width:64px;}
+  .fld.xs{flex:0 0 56px; min-width:50px;}
+  .btn{border:none; border-radius:7px; padding:9px 14px; font-size:14px; font-weight:700; cursor:pointer; color:#fff;}
+  .btn:disabled{opacity:.35; cursor:not-allowed; filter:grayscale(.6);}
+  .btn.long{background:var(--green);} .btn.short{background:var(--red);}
+  .btn.ghost{background:var(--panel2); color:var(--muted); border:1px solid var(--border);}
+  .btn.warn{background:var(--yellow); color:#111;}
+  .btn.fetch{background:var(--accent);}
+  .ticker{display:flex; gap:14px; overflow-x:auto; padding:2px 0; font-size:13px; white-space:nowrap;}
+  .ticker .dim{opacity:.45;}
+  .ticker b{font-variant-numeric:tabular-nums;}
+  .up{color:var(--green);} .down{color:var(--red);}
+  .dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--red); margin-right:4px;}
+  .dot.on{background:var(--green); box-shadow:0 0 6px var(--green);}
+  .dot.wait{background:var(--yellow); box-shadow:0 0 6px var(--yellow);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:right; color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  th:first-child, td:first-child{text-align:left;}
+  td{padding:8px; text-align:right; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .badge{display:inline-block; padding:2px 8px; border-radius:5px; font-size:11px; font-weight:700;}
+  .badge.l{background:rgba(46,189,133,.15); color:var(--green);}
+  .badge.s{background:rgba(246,70,93,.15); color:var(--red);}
+  .badge.q{background:rgba(240,185,11,.15); color:var(--yellow);}
+  .badge.adds{background:rgba(76,111,255,.18); color:#8ea3ff; font-size:10px; padding:1px 6px; margin-left:4px;}
+  tr.total td{font-weight:700; border-top:2px solid var(--border); border-bottom:none; font-size:14px;}
+  .pos{color:var(--green);} .neg{color:var(--red);}
+  #log{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; color:var(--muted); max-height:150px; overflow-y:auto; line-height:1.6;}
+  #log div b{color:var(--text);}
+  .stats{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--muted); align-items:center;}
+  .stats b{color:var(--text); font-variant-numeric:tabular-nums;}
+  .hint{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5;}
+  .sub{font-size:10px; color:var(--muted); display:block; font-weight:400;}
+  .session .big{font-size:32px; font-weight:700; margin-top:6px; font-variant-numeric:tabular-nums; letter-spacing:.5px; line-height:1.1;}
+  .session .subbig{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px;}
+  .batchchip{display:inline-flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:5px 9px; font-size:12px;}
+  .btcbar{display:flex; gap:16px; flex-wrap:wrap; align-items:center; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; font-size:13px; margin-bottom:10px;}
+  .btcbar .lbl{color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px;}
+  .btcbar b{font-variant-numeric:tabular-nums;}
+  @media (max-width:560px){
+    body{padding:8px;}
+    .btn{flex:1; padding:10px 8px;}
+    th, td { padding: 4px 4px; font-size: 11px; }
+    .badge { padding: 1px 4px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<h1><span class="dn">Delta Neutral</span> Simulator</h1>
+
+<div class="card session">
+  <h2>Session · Realized PnL</h2>
+  <div class="stats" style="margin-bottom:6px;">
+    <span>Started: <b id="sessStart">—</b></span>
+    <span>Duration: <b id="sessDur">00:00:00</b></span>
+    <span>Trades: <b id="sessTrades">0</b></span>
+    <span>W / L: <b id="sessWL">0 / 0</b></span>
+    <span>Fees paid: <b id="sessFees">0</b></span>
+    <button class="btn ghost" id="btnReset" style="margin-left:auto; padding:5px 10px; font-size:12px;">⟲ Reset Session</button>
+  </div>
+  <div class="subbig">Total Realized PnL (since start)</div>
+  <div class="big" id="sessRealized">+0.0000</div>
+</div>
+
+<div class="card">
+  <h2>Settings — Symbols &amp; Bias</h2>
+  <div class="btcbar">
+    <span class="lbl">BTC</span>
+    <span>Price <b id="btcPrice">—</b></span>
+    <span>24h <b id="btc24h">—</b></span>
+    <span style="margin-left:auto; font-size:11px;" id="btcBias">—</span>
+  </div>
+  <div class="row" style="margin-bottom:8px;">
+    <div class="fld" style="flex:1; min-width:140px;">
+      <label class="fl">Bias Mode</label>
+      <select id="biasMode">
+        <option value="auto">Auto (BTC 24h%)</option>
+        <option value="LONG">Force LONG</option>
+        <option value="SHORT">Force SHORT</option>
+      </select>
+    </div>
+    <div class="fld xs" style="flex:0 0 100px;">
+      <label class="fl">Plus Override $</label>
+      <input type="number" id="plusOverride" placeholder="auto" step="0.5" min="0">
+    </div>
+  </div>
+  <div class="hint" style="margin-top:0; margin-bottom:8px;">Leave both on <b>auto</b> to fall back to BTC 24h% rule. Manual Bias Mode flips the side; Plus Override replaces the Trade&nbsp;Setup <b>Plus $</b> value (blank = use Plus $).</div>
+  <div class="row" id="symRow"></div>
+  <div class="row" style="margin-top:8px;">
+    <div class="fld" style="flex:2; min-width:120px;"><input type="text" id="newSym" placeholder="Add symbol (e.g. SOL)"></div>
+    <button class="btn ghost" id="addSym" style="flex:0 0 auto;">＋ Add</button>
+  </div>
+  <div class="hint">Every symbol here is streamed live by the server. Check the ones you want to trade; hit ✕ to remove a coin.</div>
+</div>
+
+<div class="card">
+  <h2>Trade Setup</h2>
+  <div class="row">
+    <div class="fld xs"><label class="fl">TP $</label><input type="number" id="tp" step="0.01" min="0"></div>
+    <div class="fld xs"><label class="fl">SL $</label><input type="number" id="sl" step="0.01" min="0"></div>
+    <div class="fld xs"><label class="fl">+Drift</label><input type="number" id="driftUp" step="0.01" min="0"></div>
+    <div class="fld xs"><label class="fl">−Drift</label><input type="number" id="driftDn" step="0.01" min="0"></div>
+    <div class="fld xs"><label class="fl">USDT Amt</label><input type="number" id="amt" step="1" min="0"></div>
+    <div class="fld xs"><label class="fl">Plus $</label><input type="number" id="plus" step="0.5" min="0"></div>
+    <div class="fld xs"><label class="fl">Fees %</label><input type="number" id="fee" placeholder="blank = 0" step="0.01" min="0"></div>
+  </div>
+  <div class="hint" style="margin-top:6px;">Bias side &amp; Plus come from <b>Settings</b> (auto = BTC 24h% ≥ +0.5 → LONG). Applied once per round-trip at batch re-open.</div>
+  <div class="row" style="margin-top:8px;">
+    <label class="symbox" style="padding:7px 10px;">
+      <input type="checkbox" id="autoRestart"> Auto-Restart on close
+    </label>
+    <button class="btn fetch" id="btnFetch" style="flex:2; min-width:130px;">⚡ Fetch Prices</button>
+  </div>
+  <div class="row" style="margin-top:8px;">
+    <div class="fld" style="flex:2; min-width:130px;"><label class="fl">Target (checked symbols)</label><select id="target"></select></div>
+  </div>
+  <div class="row" style="margin-top:8px;">
+    <button class="btn long" id="btnLong">Long</button>
+    <button class="btn short" id="btnShort">Short</button>
+    <button class="btn warn" id="btnExit">Exit All</button>
+  </div>
+  <div class="hint" id="gateHint">Server-side engine is running 24/7. Long / Short are always available.</div>
+</div>
+
+<div class="card">
+  <div class="stats" style="margin-bottom:8px;">
+    <span><span class="dot" id="connDot"></span><span id="connTxt">Connecting…</span></span>
+    <span>Positions: <b id="nPos">0</b></span>
+    <span>Queued: <b id="nQueue">0</b></span>
+    <span>Auto-exit: <b id="autoTxt"></b></span>
+    <span>Batch: <b id="restartTxt">—</b></span>
+  </div>
+  <div class="ticker" id="ticker"></div>
+</div>
+
+<div class="card">
+  <h2>Active Positions</h2>
+  <div style="overflow-x:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>Coin</th><th>Side</th>
+        <th>Entry<span class="sub">avg</span></th>
+        <th>Qty</th>
+        <th>Amt<span class="sub">USDT</span></th>
+        <th>PnL</th><th>Fees</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Restart Batch <span id="batchCount" style="color:var(--muted); font-weight:400;"></span></h2>
+  <div class="row" id="batchRow"></div>
+  <div class="hint">Every <b>symbol + side</b> you open is stored here. When the book empties (TP / SL / Drift) the whole batch re-opens at a <b>fresh</b> price — if Auto-Restart is checked. ✕ on a position removes it from the batch. <b>Exit All</b> clears the batch.</div>
+</div>
+
+<div class="card">
+  <h2>Activity Log</h2>
+  <div id="log"></div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+const fmtP = p => {
+  if (p == null || !isFinite(p)) return "—";
+  const d = p >= 100 ? 2 : p >= 1 ? 4 : p >= 0.001 ? 6 : 8;
+  return (+p).toFixed(d);
+};
+const fmtN = n => (n == null || !isFinite(n)) ? "—" : (Math.abs(n) < 1e-9 ? "0" : (+n).toFixed(4).replace(/\.?0+$/,""));
+const fmtSigned = n => (n >= 0 ? "+" : "") + fmtN(n);
+const pad2 = n => String(n).padStart(2, "0");
+const fmtTime = ms => { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+const fmtDur = ms => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${pad2(Math.floor(s / 3600))}:${pad2(Math.floor((s % 3600) / 60))}:${pad2(s % 60)}`;
+};
+
+let latest = null;
+let dirtyFields = new Set();  // fields user is currently editing
+
+/* -------- API -------- */
+async function api(path, method = "GET", body){
+  const opt = { method, headers: { "Content-Type": "application/json" } };
+  if (body) opt.body = JSON.stringify(body);
+  const r = await fetch(path, opt);
+  return r.json().catch(() => ({}));
+}
+
+/* -------- Poll server -------- */
+async function poll(){
+  try {
+    const s = await api("/api/state");
+    latest = s;
+    render(s);
+  } catch(e){
+    $("connTxt").textContent = "Server unreachable";
+    $("connDot").className = "dot";
+  }
+}
+setInterval(poll, 500);
+poll();
+
+/* -------- Input handlers (settings) -------- */
+const SETTING_FIELDS = ["tp","sl","driftUp","driftDn","amt","plus","fee","biasMode","plusOverride"];
+const settingTimers = {};
+
+SETTING_FIELDS.forEach(id => {
+  const el = $(id);
+  el.addEventListener("focus", () => dirtyFields.add(id));
+  el.addEventListener("blur", () => dirtyFields.delete(id));
+  el.addEventListener("input", () => {
+    clearTimeout(settingTimers[id]);
+    settingTimers[id] = setTimeout(async () => {
+      const raw = el.value;
+      const numeric = ["tp","sl","driftUp","driftDn","amt","plus","fee"];
+      const val = numeric.includes(id) ? (raw === "" ? "" : parseFloat(raw)) : raw;
+      await api("/api/settings", "POST", { [id]: val });
+    }, 250);
+  });
+  el.addEventListener("change", async () => {
+    const raw = el.value;
+    const numeric = ["tp","sl","driftUp","driftDn","amt","plus","fee"];
+    const val = numeric.includes(id) ? (raw === "" ? "" : parseFloat(raw)) : raw;
+    await api("/api/settings", "POST", { [id]: val });
+  });
+});
+
+$("autoRestart").addEventListener("change", async e => {
+  await api("/api/settings", "POST", { autoRestart: e.target.checked });
+});
+
+$("target").addEventListener("change", async e => {
+  await api("/api/settings", "POST", { target: e.target.value });
+});
+
+$("addSym").onclick = async () => {
+  const s = $("newSym").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!s) return;
+  $("newSym").value = "";
+  await api("/api/symbols", "POST", { action: "add", symbol: s });
+};
+
+$("newSym").addEventListener("keydown", e => { if (e.key === "Enter") $("addSym").click(); });
+
+$("btnFetch").onclick = async () => {
+  $("btnFetch").disabled = true;
+  const old = $("btnFetch").textContent;
+  $("btnFetch").textContent = "⏳ Fetching…";
+  await api("/api/fetch", "POST", {});
+  $("btnFetch").textContent = old;
+  $("btnFetch").disabled = false;
+};
+
+$("btnLong").onclick  = () => api("/api/open", "POST", { side: "LONG" });
+$("btnShort").onclick = () => api("/api/open", "POST", { side: "SHORT" });
+$("btnExit").onclick  = () => api("/api/closeAll", "POST", {});
+$("btnReset").onclick = () => {
+  if (!confirm("Reset session stats? Open positions stay open.")) return;
+  api("/api/resetSession", "POST", {});
+};
+
+/* -------- Symbol UI -------- */
+function renderSymbols(s){
+  const row = $("symRow");
+  const key = s.symbols.join("|") + "::" + s.checked.join("|");
+  if (row.dataset.key === key) return;
+  row.dataset.key = key;
+  row.innerHTML = "";
+  s.symbols.forEach(sym => {
+    const on = s.checked.includes(sym);
+    const lb = document.createElement("label");
+    lb.className = "symbox" + (on ? "" : " off");
+    lb.innerHTML = `<input type="checkbox" ${on ? "checked" : ""}> <span>${sym}</span>`;
+    const cb = lb.querySelector("input");
+    cb.onchange = () => api("/api/symbols", "POST", { action: "toggle", symbol: sym, checked: cb.checked });
+    const rm = document.createElement("button");
+    rm.type = "button"; rm.className = "rm"; rm.textContent = "✕"; rm.title = "Remove " + sym;
+    rm.onclick = e => { e.preventDefault(); e.stopPropagation(); api("/api/symbols", "POST", { action: "remove", symbol: sym }); };
+    lb.appendChild(rm);
+    row.appendChild(lb);
+  });
+}
+
+function renderTarget(s){
+  const sel = $("target");
+  const key = s.checked.join("|") + "::" + (s.settings.target || "");
+  if (sel.dataset.key === key) return;
+  sel.dataset.key = key;
+  sel.innerHTML = "";
+  sel.add(new Option("All checked (" + s.checked.length + ")", "*"));
+  s.checked.forEach(c => sel.add(new Option(c, c)));
+  sel.value = s.settings.target || "*";
+}
+
+/* -------- Render -------- */
+let lastSessionKey = "";
+function renderSession(s){
+  const key = `${s.session.start}|${s.session.realizedPnl}|${s.session.realizedFees}|${s.session.tradeCount}|${s.session.wins}|${s.session.losses}`;
+  if (key !== lastSessionKey){
+    lastSessionKey = key;
+    $("sessStart").textContent = fmtTime(s.session.start);
+    $("sessTrades").textContent = s.session.tradeCount;
+    $("sessWL").textContent = `${s.session.wins} / ${s.session.losses}`;
+    $("sessFees").textContent = fmtN(s.session.realizedFees);
+    const el = $("sessRealized");
+    el.textContent = fmtSigned(s.session.realizedPnl);
+    el.className = "big " + (s.session.realizedPnl > 0 ? "pos" : s.session.realizedPnl < 0 ? "neg" : "");
+  }
+  $("sessDur").textContent = fmtDur(Date.now() - s.session.start);
+}
+
+function syncInputs(s){
+  SETTING_FIELDS.forEach(id => {
+    if (dirtyFields.has(id)) return;
+    const el = $(id);
+    const v = s.settings[id];
+    const cur = el.value;
+    if (v == null || v === "") { if (cur !== "") el.value = ""; return; }
+    if (String(v) !== cur) el.value = v;
+  });
+  if (!dirtyFields.has("autoRestart")) $("autoRestart").checked = !!s.settings.autoRestart;
+}
+
+function renderBtcBar(s){
+  $("btcPrice").textContent = (s.btcPrice != null) ? fmtP(s.btcPrice) : "—";
+  const el = $("btc24h");
+  if (s.btc24h != null && isFinite(s.btc24h)){
+    el.textContent = (s.btc24h >= 0 ? "+" : "") + s.btc24h.toFixed(2) + "%";
+    el.className = s.btc24h >= 0.5 ? "pos" : "neg";
+  } else {
+    el.textContent = "—"; el.className = "";
+  }
+  const b = s.bias;
+  const biasEl = $("btcBias");
+  if (b && b.side){
+    const src = b.source === "manual" ? `manual (${b.mode})` : "auto";
+    const plusTxt = b.plus > 0 ? ` +${fmtN(b.plus)} USDT` : "";
+    const plusSrc = b.plus > 0 ? ` <span style="color:var(--muted);">[${b.plusSource}]</span>` : "";
+    biasEl.innerHTML = `next re-open bias → <b class="${b.side==="LONG"?"pos":"neg"}">${b.side}</b>${plusTxt}${plusSrc} <span style="color:var(--muted);">(${src})</span>`;
+  } else {
+    biasEl.textContent = "next re-open bias → —";
+  }
+}
+
+let lastLogKey = "";
+function renderLog(s){
+  const key = s.logs.length ? s.logs[0].t + "|" + s.logs.length : "0";
+  if (key === lastLogKey) return;
+  lastLogKey = key;
+  const el = $("log");
+  el.innerHTML = s.logs.map(l => {
+    const t = new Date(l.t).toLocaleTimeString();
+    return `<div>[${t}] <b class="${l.cls || ""}">${l.msg}</b></div>`;
+  }).join("");
+}
+
+function render(s){
+  renderSymbols(s);
+  renderTarget(s);
+  renderSession(s);
+  syncInputs(s);
+  renderBtcBar(s);
+  renderLog(s);
+
+  /* connection */
+  $("connDot").className = "dot" + (s.wsStatus === "on" ? " on" : s.wsStatus === "wait" ? " wait" : "");
+  $("connTxt").textContent = s.wsStatusTxt || "—";
+
+  /* ticker */
+  $("ticker").innerHTML = s.symbols.map(sym => {
+    const p = s.prices[sym];
+    const dim = s.checked.includes(sym) ? "" : "dim";
+    if (p == null) return `<span class="${dim}">${sym}: …</span>`;
+    const prev = s.prices[sym]; // not used for direction (server doesn't send prev)
+    return `<span class="${dim}">${sym} <b>${fmtP(p)}</b></span>`;
+  }).join("");
+
+  /* positions table */
+  const tb = $("tbody"); tb.innerHTML = "";
+  s.positions.forEach(p => {
+    const net = p.net;
+    const pct = p.pct;
+    const addsBadge = (p.adds && p.adds > 1) ? `<span class="badge adds">×${p.adds}</span>` : "";
+    const staleMark = p.fresh ? "" : ` <span style="color:var(--yellow)" title="stale price">•</span>`;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><b>${p.sym}</b>${staleMark}</td>
+      <td style="text-align:right;"><span class="badge ${p.side==="LONG"?"l":"s"}">${p.side}</span></td>
+      <td>${fmtP(p.entry)}${pct != null ? `<span class="sub ${pct>=0?"pos":"neg"}">${pct>=0?"+":""}${pct.toFixed(2)}%</span>` : ""}</td>
+      <td><b>${fmtN(p.amt)}</b>${addsBadge}</td>
+      <td style="color:var(--muted);">$${p.notional ? fmtN(p.notional) : (p.amt * p.entry).toFixed(2)}</td>
+      <td class="${net>=0?"pos":"neg"}" style="font-weight:bold;">${net>=0?"+":""}${fmtN(net)}</td>
+      <td>${p.fees > 0 ? fmtN(p.fees) : "—"}</td>
+      <td><button class="btn ghost" style="padding:3px 9px;font-size:11px;">✕</button></td>`;
+    tr.querySelector("button").onclick = () => api("/api/close", "POST", { id: p.id });
+    tb.appendChild(tr);
+  });
+
+  s.queue.forEach(q => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><b>${q.sym}</b></td>
+      <td style="text-align:right;"><span class="badge q">QUEUED ${q.side}</span></td>
+      <td>—</td>
+      <td>—</td>
+      <td>$${fmtN(q.notional)}</td>
+      <td style="color:var(--muted)">waiting…</td>
+      <td>—</td>
+      <td></td>`;
+    tb.appendChild(tr);
+  });
+
+  if (s.positions.length){
+    const nt = s.totalNet, tf = s.totalFees;
+    const totAmt = s.positions.reduce((a, p) => a + p.amt, 0);
+    const totalNotional = s.positions.reduce((a, p) => a + (p.notional || (p.amt * p.entry)), 0);
+    const tr = document.createElement("tr");
+    tr.className = "total";
+    tr.innerHTML = `
+      <td>Total</td>
+      <td></td>
+      <td></td>
+      <td>${fmtN(totAmt)}</td>
+      <td>$${fmtN(totalNotional)}</td>
+      <td class="${nt>=0?"pos":"neg"}" style="font-weight:bold;">${nt>=0?"+":""}${fmtN(nt)}</td>
+      <td>${tf>0?fmtN(tf):"0.00"}</td>
+      <td></td>`;
+    tb.appendChild(tr);
+  } else if (!s.queue.length){
+    tb.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:18px;">No active positions</td></tr>`;
+  }
+
+  $("nPos").textContent = s.positions.length;
+  $("nQueue").textContent = s.queue.length;
+
+  const tpParts = [];
+  if (s.settings.tp > 0) tpParts.push(`TP +${fmtN(s.settings.tp)}`);
+  if (s.settings.sl > 0) tpParts.push(`SL −${fmtN(s.settings.sl)}`);
+  const tpTxt = tpParts.length ? `per position: ${tpParts.join(" / ")}` : "off";
+  const drParts = [];
+  if (s.settings.driftUp > 0) drParts.push(`+${fmtN(s.settings.driftUp)}`);
+  if (s.settings.driftDn > 0) drParts.push(`−${fmtN(s.settings.driftDn)}`);
+  const drTxt = drParts.length ? ` · drift ${drParts.join(" / ")} (all)` : "";
+  $("autoTxt").textContent = tpTxt + drTxt;
+
+  $("restartTxt").textContent = s.cycleBatch.length ? `${s.cycleBatch.length} in batch` : "—";
+  $("batchCount").textContent = s.cycleBatch.length ? `(${s.cycleBatch.length})` : "";
+  $("batchRow").innerHTML = s.cycleBatch.length
+    ? s.cycleBatch.map(b =>
+        `<span class="batchchip">${b.sym}
+          <span class="badge ${b.side==="LONG"?"l":"s"}">${b.side}</span>
+          <span style="color:var(--muted)">$${fmtN(b.notional)}</span></span>`).join("")
+    : `<span style="color:var(--muted); font-size:12px;">Empty — open a position to fill the batch.</span>`;
+}
+</script>
+</body>
+</html>
