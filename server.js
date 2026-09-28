@@ -26,8 +26,8 @@ const BTC_BIAS_THRESHOLD = 0.5;
    STATE
    ============================================================ */
 const state = {
-  symbols: ["AVAX","SUI","DOT","ATOM","ICP","NEAR"],
-  checked: ["AVAX"],
+  symbols: ["BNB","SOL","XRP","XMR","HYPE","ZEC"],
+  checked: ["BNB"],
   prices: {}, prev: {}, tickAt: {}, lastRest: {},
   positions: [],
   queue: [],
